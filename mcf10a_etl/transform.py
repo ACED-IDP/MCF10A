@@ -9,6 +9,8 @@ from fhir.resources.researchstudy import ResearchStudy
 from fhir.resources.researchsubject import ResearchSubject
 from fhir.resources.specimen import Specimen
 from fhir.resources.task import Task
+from fhir.resources.documentreference import DocumentReference
+from fhir.resources.extension import Extension
 from orjson import orjson
 
 from mcf10a_etl import FHIR_DATA_PATH, PROJECT_ID, ACED_NAMESPACE, read_ndjson, RAW_DATA_PATH
@@ -157,54 +159,92 @@ def transform_tasks(output_path):
     hierarchy = [item for item in
                  read_ndjson(RAW_DATA_PATH / "hierarchy.ndjson")]
 
-    with open(output_path / "Task.ndjson", "w") as fp:
-        for sample_annotation in sample_annotations:
-            patient_id = str(uuid.uuid5(ACED_NAMESPACE, f"Patient/{sample_annotation['cellLine']}"))
-            # https://www.synapse.org/#!Synapse:syn12979102
-            # specimenName: the sample's ligand, time, collection, and replicate (separated by _)
-            specimen_id = str(uuid.uuid5(ACED_NAMESPACE, f"Specimen/{sample_annotation['specimenName']}"))
-            assays = {k: v for k,v in sample_annotation.items() if v.startswith('syn')}
-
-            for assay_name, synapse_id in assays.items():
-                task_id = str(uuid.uuid5(ACED_NAMESPACE, f"Task/{sample_annotation['specimenName']}-{assay_name}"))
-                task = Task.parse_obj({
-                    'id': task_id,
-                    'for': {'reference': f"Patient/{patient_id}"},
-                    'focus': {'reference': f"Specimen/{specimen_id}"},
-                    'status': 'completed',
-                    'intent': 'order',
-                    'input': [
-                        {
-                            'type': {
-                                'coding': [{
-                                    'system': 'http://hl7.org/fhir',
-                                    'code': 'Specimen',
-                                    'display': 'Specimen'
-                                }],
-                                'text': 'Specimen'
-                            },
-                            'valueReference': {'reference': f"Specimen/{specimen_id}"}
+    def _document_references(_synapse_id):
+        """Find the synapse_id in the hierarchy, render DocumentReference."""
+        files_ = []
+        for item in hierarchy:
+            for file in item['file_names']:
+                if file['id_'] == _synapse_id:
+                    files_.append(file)
+        document_references_ = []
+        for file in files_:
+            file_handle = file['entity']['file_handle']
+            dr_ = DocumentReference.parse_obj({
+                'id': file_handle['etag'],
+                'status': 'current',
+                'subject':  {'reference': f"Patient/{patient_id}"},
+                'date': file_handle['createdOn'],
+                'identifier': [
+                    {
+                        'system': 'https://www.synapse.org/',
+                        'value': synapse_id
+                    }
+                ],
+                # TODO type, category ?
+                'content': [
+                    {
+                        'attachment': {
+                            'contentType': file_handle['contentType'],
+                            'title': file_handle['fileName'],
+                            'extension': [
+                                {
+                                    "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
+                                    "valueString": file_handle['contentMd5']
+                                }
+                            ],
+                            'size': file_handle['contentSize'],
+                            'creation': file_handle['createdOn'],
                         }
-                    ],
-                    'output': [
-                        {
-                            'type': {
-                                'coding': [{
-                                    'system': 'http://hl7.org/fhir',
-                                    'code': 'DocumentReference',
-                                    'display': 'DocumentReference'
-                                }],
-                                'text': 'DocumentReference'
-                            },
-                            # TODO - these need to be expanded and itemized for all files in synapse_id
-                            'valueReference': {'reference': f"DocumentReference/{synapse_id}"}
-                        }
-                    ],
+                    }
+                ]
 
-                })
-                fp.write(task.json(option=orjson.OPT_NAIVE_UTC | orjson.OPT_APPEND_NEWLINE))
+            })
+            document_references_.append(dr_)
+        return document_references_
 
-        print('Done. Note: TODO - these tasks need DocumentReferences to be expanded and itemized for all files in synapse_id see hierarchy.ndjson')
+    with open(output_path / "DocumentReference.ndjson", "w") as dr_fp:
+
+        with open(output_path / "Task.ndjson", "w") as fp:
+            for sample_annotation in sample_annotations:
+                patient_id = str(uuid.uuid5(ACED_NAMESPACE, f"Patient/{sample_annotation['cellLine']}"))
+                # https://www.synapse.org/#!Synapse:syn12979102
+                # specimenName: the sample's ligand, time, collection, and replicate (separated by _)
+                specimen_id = str(uuid.uuid5(ACED_NAMESPACE, f"Specimen/{sample_annotation['specimenName']}"))
+                assays = {k: v for k, v in sample_annotation.items() if v.startswith('syn')}
+                for assay_name, synapse_id in assays.items():
+                    task_id = str(uuid.uuid5(ACED_NAMESPACE, f"Task/{sample_annotation['specimenName']}-{assay_name}"))
+                    document_references = _document_references(synapse_id)
+                    outputs = [{
+                        'type': {
+                            'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference',}],
+                            'text': 'DocumentReference'
+                        },
+                        'valueReference': {'reference': f"DocumentReference/{d_.id}"}
+                    }
+                        for d_ in document_references]
+                    task = Task.parse_obj({
+                        'id': task_id,
+                        'for': {'reference': f"Patient/{patient_id}"},
+                        'focus': {'reference': f"Specimen/{specimen_id}"},
+                        'status': 'completed',
+                        'intent': 'order',
+                        'input': [
+                            {
+                                'type': {
+                                    'coding': [{
+                                        'system': 'http://hl7.org/fhir',
+                                        'code': 'Specimen',
+                                    }],
+                                    'text': 'Specimen'
+                                },
+                                'valueReference': {'reference': f"Specimen/{specimen_id}"}
+                            }
+                        ],
+                        'output': outputs,
+                    })
+                    fp.write(task.json(option=orjson.OPT_NAIVE_UTC | orjson.OPT_APPEND_NEWLINE))
+                    for dr in document_references:
+                        dr_fp.write(dr.json(option=orjson.OPT_NAIVE_UTC | orjson.OPT_APPEND_NEWLINE))
 
 
 # https://data.humantumoratlas.org/standard/biospecimen
