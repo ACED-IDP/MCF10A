@@ -10,10 +10,11 @@ from fhir.resources.researchsubject import ResearchSubject
 from fhir.resources.specimen import Specimen
 from fhir.resources.task import Task
 from fhir.resources.documentreference import DocumentReference
-from fhir.resources.extension import Extension
 from orjson import orjson
 
 from mcf10a_etl import FHIR_DATA_PATH, PROJECT_ID, ACED_NAMESPACE, read_ndjson, RAW_DATA_PATH
+
+LOGGED_ALREADY = []
 
 
 @click.group()
@@ -161,45 +162,54 @@ def transform_tasks(output_path):
 
     def _document_references(_synapse_id):
         """Find the synapse_id in the hierarchy, render DocumentReference."""
-        files_ = []
+        file = None
+        directory_name = None
         for item in hierarchy:
-            for file in item['file_names']:
-                if file['id_'] == _synapse_id:
-                    files_.append(file)
+            for file_ in item['file_names']:
+                if file_['id_'] == _synapse_id:
+                    file = file_
+                    directory_name = item['dir_path']['name']
+                    break
+        if not file:
+            msg = f"Did not find {_synapse_id} in hierarchy, see https://www.synapse.org/#!Synapse:{_synapse_id}"
+            if msg not in LOGGED_ALREADY:
+                print(msg)
+                LOGGED_ALREADY.append(msg)
+            return []
         document_references_ = []
-        for file in files_:
-            file_handle = file['entity']['file_handle']
-            dr_ = DocumentReference.parse_obj({
-                'id': file_handle['etag'],
-                'status': 'current',
-                'subject':  {'reference': f"Patient/{patient_id}"},
-                'date': file_handle['createdOn'],
-                'identifier': [
-                    {
-                        'system': 'https://www.synapse.org/',
-                        'value': synapse_id
+        file_handle = file['entity']['file_handle']
+        dr_ = DocumentReference.parse_obj({
+            'id': file_handle['etag'],
+            'status': 'current',
+            'subject':  {'reference': f"Patient/{patient_id}"},
+            'date': file_handle['createdOn'],
+            'identifier': [
+                {
+                    'system': 'https://www.synapse.org/',
+                    'value': synapse_id
+                }
+            ],
+            # TODO code, category ?
+            'content': [
+                {
+                    'attachment': {
+                        'contentType': file_handle['contentType'],
+                        'title': file_handle['fileName'],
+                        'url': f"{directory_name}/{file_handle['fileName']}",
+                        'extension': [
+                            {
+                                "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
+                                "valueString": file_handle['contentMd5']
+                            }
+                        ],
+                        'size': file_handle['contentSize'],
+                        'creation': file_handle['createdOn'],
                     }
-                ],
-                # TODO type, category ?
-                'content': [
-                    {
-                        'attachment': {
-                            'contentType': file_handle['contentType'],
-                            'title': file_handle['fileName'],
-                            'extension': [
-                                {
-                                    "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
-                                    "valueString": file_handle['contentMd5']
-                                }
-                            ],
-                            'size': file_handle['contentSize'],
-                            'creation': file_handle['createdOn'],
-                        }
-                    }
-                ]
+                }
+            ]
 
-            })
-            document_references_.append(dr_)
+        })
+        document_references_.append(dr_)
         return document_references_
 
     with open(output_path / "DocumentReference.ndjson", "w") as dr_fp:
