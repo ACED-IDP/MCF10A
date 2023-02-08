@@ -1,0 +1,4 @@
+*.ndjson
+*.csv
+*/
+!.gitignore
