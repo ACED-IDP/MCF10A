@@ -1,4 +1,4 @@
 synapseclient[pandas, pysftp]
 click
 orjson
-https://github.com/bmeg/fhir.resources/archive/feature/backref.zip
+snakemake

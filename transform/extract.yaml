@@ -1,0 +1,26 @@
+
+class: lathe
+name: download
+
+scripts:
+  tables:
+    commandLine: ../util/extract.py table --table_id syn18486042 ../data/raw
+    outputs:
+      - ../data/raw/summary_table.ndjson
+  project:
+    commandLine: ../util/extract.py project --project_id syn21577710 ../data/raw
+    outputs:
+      - ../data/raw/project.ndjson
+  hierarchy:
+    commandLine: ../util/extract.py hierarchy --project_id syn21577710 ../data/raw
+    outputs:
+      - ../data/raw/hierarchy.ndjson
+  samples:
+    commandLine: ../util/extract.py sample --file_id syn18662790 ../data/raw
+    outputs:
+      - ../data/raw/sample_annotations.ndjson
+  #don't need to download all the files yet, but here is how you would...
+  #files:
+  #  commandLine: ../util/extract.py files --project_id syn21577710
+  #  outputs:
+  #    - ../../data/raw/files.ndjson

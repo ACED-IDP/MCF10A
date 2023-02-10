@@ -2,6 +2,13 @@
 # MCF10A
 LINCS MCF10A Molecular Deep Dive (MDD)
 
+## Add submodule
+The `data_model` repo submodule
+```
+git submodule init
+git submodule update
+```
+
 ## Startup
 
 Setup python env
@@ -25,48 +32,44 @@ Load your environment:
 export $(cat Secrets/.env | xargs)
 ```
 
+## Toolchain
 
-## Extract
+### Install GO
+Install GO (at least Go 1.19): https://go.dev/dl/
 
-Download raw data
-
-```
-export $(cat Secrets/.env | xargs)
-mcf10a_etl extract --help
-
-Usage: mcf10a_etl extract [OPTIONS] COMMAND [ARGS]...
-
-  Extract data from Synapse.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  files      Synchronizes all the files in a folder (including...
-  hierarchy  Extract project hierarchy.
-  project    Extract project.
-  sample     Extract sample annotations.
-  table      Extract project summary.
-
+### Sifter / Lathe
 
 ```
+go install github.com/bmeg/sifter@latest
+go install github.com/bmeg/lathe@latest
+```
 
-## Transform
-
-Transform raw data into FHIR
+### Update path
 
 ```
-$ mcf10a_etl transform --help
-Usage: mcf10a_etl transform [OPTIONS] COMMAND [ARGS]...
+export PATH=$PATH:$HOME/go/bin
+```
 
-  Transform raw data from Synapse.
+## Building
 
-Options:
-  --help  Show this message and exit.
+Build Snakefile
+```
+lathe plan transform -C .
+```
 
-Commands:
-  specimens  FHIR Specimen
-  study      FHIR ResearchStudy
-  subjects   FHIR Patient, ResearchSubject
-  tasks      FHIR Task, DocumentReference
+Run build
+```
+snakemake -j 4
+```
+
+### Outputs
+
+Generated data should be under `output` and include:
+```
+transform.documentReference.DocumentReference.json.gz
+transform.patient.Patient.json.gz
+transform.researchStudy.ResearchStudy.json.gz
+transform.researchSubject.ResearchSubject.json.gz
+transform.specimens.Specimen.json.gz
+transform.task.Task.json.gz
 ```

@@ -1,0 +1,306 @@
+
+class: sifter
+name: transform
+
+outdir: ../output
+
+config:
+  summaryTable: ../data/raw/summary_table.ndjson
+  sampleAnnotations: ../data/raw/sample_annotations.ndjson
+  hierarchy: ../data/raw/hierarchy.ndjson
+  project_id: syn21577710
+  schema: ../data_model/generated-json-schema/
+
+inputs:
+  researchStudyData:
+    embedded:
+      - #id: str(uuid.uuid5(ACED_NAMESPACE, PROJECT_ID)),
+        title: 'LINCS MCF10A Molecular Deep Dive (MDD)'
+        status: 'completed'
+        identifier: [
+            {
+                'system': 'https://www.synapse.org/',
+                'value': syn21577710
+            }
+        ]
+  researchSubjectData:
+    jsonLoad:
+      input: "{{config.summaryTable}}"
+  sampleAnnotationData:
+    jsonLoad:
+      input: "{{config.sampleAnnotations}}"
+  hierarchyData:
+    jsonLoad:
+      input: "{{config.hierarchy}}"
+
+
+pipelines:
+
+  researchStudy:
+    # Write out the node that represents the entire Research Study
+    - from: researchStudyData
+    - uuid:
+        value: "{{config.project_id}}"
+        field: id
+        namespace: 'aced-ipd.org'
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: ResearchStudy
+    - emit:
+        name: ResearchStudy
+
+  researchSubject:
+    - from: researchSubjectData
+    - distinct:
+        value: "{{row.Cell_Line}}"
+    - uuid:
+        value: "Patient/{{row.Cell_Line}}"
+        field: patient_id
+        namespace: 'aced-ipd.org'
+    - uuid:
+        value: "{{config.project_id}}"
+        field: study_id
+        namespace: 'aced-ipd.org'
+    - uuid:
+        value: "ResearchSubject/{{row.Cell_Line}}"
+        field: subject_id
+        namespace: 'aced-ipd.org'
+    - project:
+        mapping:
+          id: "{{row.subject_id}}"
+          individual: { 'reference': "Patient/{{row.patient_id}}" }
+          study: { 'reference': "ResearchStudy/{{row.study_id}}" }
+          status': 'on-study'
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: ResearchSubject
+    - emit:
+        name: ResearchSubject
+
+
+  patient:
+    - from: sampleAnnotationData
+    - distinct:
+        # in summary_table it's `Cell_Line` and in sample_annotations it's `cellLine`
+        value: "{{row.cellLine}}"
+
+    - uuid:
+        value: "Patient/{{row.cellLine}}"
+        field: patient_id
+        namespace: 'aced-ipd.org'
+
+    - map:
+        method: fix
+        gpython: | 
+          def fix(row):
+            row['id'] =  row["patient_id"]
+            row[ 'identifier' ] = [
+                {
+                    'system': 'https://www.synapse.org/',
+                    'value': row["cellLine"]
+                }
+            ]
+            
+            return row
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Patient
+    - emit: 
+        name: Patient
+
+
+  specimens:
+    - from: sampleAnnotationData
+    - uuid:
+        value: "Patient/{{row.cellLine}}"
+        field: patient_id
+        namespace: 'aced-ipd.org'
+    - uuid:
+        value: "Specimen/{{row.specimenName}}"
+        field: id
+        namespace: 'aced-ipd.org'
+
+    - map: 
+        method: fix
+        #fix this later
+        gpython: |
+          def fix(row):
+            out = {
+              "id": row["id"],
+              'subject': {'reference': "Patient/" + row["patient_id"]},
+              'identifier': [
+                {
+                  'system': 'https://www.synapse.org/#specimenID',
+                  'value': row['specimenID']
+                },
+                {
+                  'system': 'https://www.synapse.org/#specimenName',
+                  'value': row['specimenName']
+                }
+              ],
+              'collection': {
+                'bodySite': {
+                  'coding': [
+                    {
+                      'system': "http://purl.bioontology.org/ontology/SNOMEDCT",
+                      'code': "76752008", ##TODO: not hardcode this
+                      'display': 'Breast Structure'
+                    }
+                  ],
+                  'text':  row['cellType']
+                }
+              }
+            }
+            return out
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Specimen
+    - emit:
+        name: Specimen
+
+  hierarchy:
+    - from: hierarchyData
+    - fieldProcess:
+        field: file_names
+
+  taskDocs:
+    - from: sampleAnnotationData
+    - uuid:
+        value: "Patient/{{row.cellLine}}"
+        field: patient_id
+        namespace: 'aced-ipd.org'
+    - uuid:
+        value: "Specimen/{{row.specimenName}}"
+        field: specimen_id
+        namespace: 'aced-ipd.org'
+    - flatmap:
+        method: flatten
+        gpython: | 
+          def flatten(row):
+            out = []
+            for k, v in row.items():
+              if v.startswith("syn"):
+                out.append({
+                  "assay_name": k,
+                  "synid": v,
+                  "patient_id": row["patient_id"],
+                  "specimen_id": row["specimen_id"],
+                  "specimenName": row["specimenName"]
+                })
+            return out
+    - uuid:
+        value: "Task/{{row.specimenName}}-{{row.assay_name}}"
+        field: task_id
+        namespace: 'aced-ipd.org'
+
+    - lookup:
+        pipeline:
+          from: hierarchy
+          key: id_
+        lookup: "{{row.synid}}"
+        copy:
+          entity: entity
+          id_: id_
+          _dirpath: _dirpath
+
+  task:
+    - from: taskDocs
+    - map:
+        method: fix
+        gpython: |
+          def fix(row):
+            synapse_id = row["synid"]
+            docRef = []
+            if 'entity' in row:
+              file_handle = row['entity']['file_handle']
+              dID = file_handle['etag']
+              docRef.append({
+                'type': {
+                  'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference',}],
+                  'text': 'DocumentReference'
+                },
+                'valueReference': {'reference': "DocumentReference/" + dID}
+              })
+
+            return {
+              'synid': row["synid"],
+              'id': row["task_id"],
+              'for': {'reference': "Patient/" + row["patient_id"]},
+              'focus': {'reference': "Specimen/" + row["specimen_id"]},
+              'status': 'completed',
+              'intent': 'order',
+              'input': [
+                  {
+                      'type': {
+                          'coding': [{
+                              'system': 'http://hl7.org/fhir',
+                              'code': 'Specimen',
+                          }],
+                          'text': 'Specimen'
+                      },
+                      'valueReference': {'reference': "Specimen/" + row["specimen_id"]}
+                  }
+              ],
+              'output' : docRef
+            }
+
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Task
+
+    - emit:
+        name: Task
+
+  documentReference:
+    - from: taskDocs
+    - map:
+        method: fix
+        gpython: |
+          def fix(row):
+            synapse_id = row["synid"]
+            d = {}
+            if 'entity' in row:
+              directory_name = "https://www.synapse.org/#!Synapse:"
+              file_handle = row['entity']['file_handle']
+              d = {
+                'id': file_handle['etag'],
+                'status': 'current',
+                'subject':  {'reference': "Patient/" + row["patient_id"]},
+                'date': file_handle['createdOn'],
+                'identifier': [
+                    {
+                        'system': 'https://www.synapse.org/',
+                        'value': synapse_id
+                    }
+                ],
+                # TODO code, category ?
+                'content': [
+                    {
+                        'attachment': {
+                            'contentType': file_handle['contentType'],
+                            'title': file_handle['fileName'],
+                            'url': directory_name + synapse_id,
+                            'extension': [
+                                {
+                                    "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
+                                    "valueString": file_handle['contentMd5']
+                                }
+                            ],
+                            'size': file_handle['contentSize'],
+                            'creation': file_handle['createdOn'],
+                        }
+                    }
+                ]
+              }
+            return d
+
+    - filter:
+        field: content
+        check: exists
+
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: DocumentReference
+
+    - emit:
+        name: DocumentReference

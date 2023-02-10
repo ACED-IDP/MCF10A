@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+import csv
 import datetime
 import pathlib
 from typing import List, Any
@@ -7,11 +10,26 @@ import click
 import orjson
 import synapseclient
 import synapseutils
+from typing import Iterator, Dict
 
 from synapseclient import Project, Folder, File, Link
 import shutil
 
-from mcf10a_etl import RAW_DATA_PATH, PROJECT_ID, SUMMARY_TABLE_ID, SAMPLE_ANNOTATIONS_ID, read_tsv
+RAW_DATA_PATH = pathlib.Path('data/raw')
+
+def read_ndjson(path: str) -> Iterator[Dict]:
+    """Read ndjson file, load json line by line."""
+    with open(path) as jsonfile:
+        for l_ in jsonfile.readlines():
+            yield orjson.loads(l_)
+
+
+def read_tsv(path: str, delimiter="\t") -> Iterator[Dict]:
+    """Read tsv file line by line."""
+    with open(path) as tsv_file:
+        reader = csv.DictReader(tsv_file, delimiter=delimiter)
+        for row in reader:
+            yield row
 
 
 @click.group()
@@ -22,7 +40,7 @@ def extract():
 
 @extract.command('project')
 @click.argument('output_path', default=RAW_DATA_PATH)
-@click.option('--project_id', default=PROJECT_ID)
+@click.option('--project_id')
 def extract_project(output_path, project_id):
     """Extract project."""
     syn = synapseclient.Synapse()
@@ -36,7 +54,7 @@ def extract_project(output_path, project_id):
 
 @extract.command('hierarchy')
 @click.argument('output_path', default=RAW_DATA_PATH)
-@click.option('--project_id', default=PROJECT_ID)
+@click.option('--project_id')
 def extract_tree(output_path, project_id):
     """Extract project hierarchy."""
     syn = synapseclient.Synapse()
@@ -97,7 +115,7 @@ def extract_tree(output_path, project_id):
 
 @extract.command('files')
 @click.argument('output_path', default=RAW_DATA_PATH)
-@click.option('--project_id', default=PROJECT_ID)
+@click.option('--project_id')
 def extract_files(output_path, project_id):
     """Synchronizes all the files in a folder (including subfolders) from Synapse."""
     syn = synapseclient.Synapse()
@@ -112,7 +130,7 @@ def extract_files(output_path, project_id):
 
 @extract.command('table')
 @click.argument('output_path', default=RAW_DATA_PATH)
-@click.option('--table_id', default=SUMMARY_TABLE_ID)
+@click.option('--table_id')
 def extract_table(output_path, table_id):
     """Extract project summary."""
     syn = synapseclient.Synapse(silent=True)
@@ -127,7 +145,7 @@ def extract_table(output_path, table_id):
 
 @extract.command('sample')
 @click.argument('output_path', default=RAW_DATA_PATH)
-@click.option('--file_id', default=SAMPLE_ANNOTATIONS_ID)
+@click.option('--file_id')
 def extract_sample_annotations(output_path, file_id):
     """Extract sample annotations."""
     syn = synapseclient.Synapse(silent=True)
