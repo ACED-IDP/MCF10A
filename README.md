@@ -2,6 +2,13 @@
 # MCF10A
 LINCS MCF10A Molecular Deep Dive (MDD)
 
+## Add submodule
+The `data_model` repo submodule
+```
+git submodule init
+git submodule update
+```
+
 ## Startup
 
 Setup python env
@@ -57,7 +64,7 @@ snakemake -j 4
 
 ### Outputs
 
-Generated data should be under `outputs` and include:
+Generated data should be under `output` and include:
 ```
 transform.documentReference.DocumentReference.json.gz
 transform.patient.Patient.json.gz
