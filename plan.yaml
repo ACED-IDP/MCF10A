@@ -1,0 +1,8 @@
+
+
+class: plan
+name: mcf10a
+
+steps:
+  - buildCommands:
+      dir: transform

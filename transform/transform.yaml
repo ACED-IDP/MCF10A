@@ -43,11 +43,18 @@ pipelines:
         value: "{{config.project_id}}"
         field: id
         namespace: 'aced-ipd.org'
+    - project:
+        mapping:
+          resourceType: ResearchStudy
     - objectValidate:
         schema: "{{config.schema}}"
         title: ResearchStudy
     - emit:
         name: ResearchStudy
+
+  # Many fields here are extra for the FHIR model and cause FHIR validation errors for researchSubject downstream
+  # This will need to be cleaned in the future, but for the purposes of the MCF10A data there is only one research subject
+  # so it was just edited to FHIR compliance by hand
 
   researchSubject:
     - from: researchSubjectData
@@ -64,19 +71,20 @@ pipelines:
     - uuid:
         value: "ResearchSubject/{{row.Cell_Line}}"
         field: subject_id
+        # ^ vs. field: subject_idx from before
         namespace: 'aced-ipd.org'
     - project:
         mapping:
           id: "{{row.subject_id}}"
+          resourceType: ResearchSubject
           individual: { 'reference': "Patient/{{row.patient_id}}" }
           study: { 'reference': "ResearchStudy/{{row.study_id}}" }
-          status': 'on-study'
+          status: 'on-study'
     - objectValidate:
         schema: "{{config.schema}}"
         title: ResearchSubject
     - emit:
         name: ResearchSubject
-
 
   patient:
     - from: sampleAnnotationData
@@ -102,6 +110,12 @@ pipelines:
             ]
             
             return row
+
+    # This is not actually creating the resourceType field in the Patient json file     
+    - project:
+        mapping:
+          resoureceType: Patient
+          
     - objectValidate:
         schema: "{{config.schema}}"
         title: Patient
@@ -152,12 +166,17 @@ pipelines:
               }
             }
             return out
+    - project:
+        mapping:
+          resourceType: Specimen
+
     - objectValidate:
         schema: "{{config.schema}}"
         title: Specimen
     - emit:
         name: Specimen
 
+  # Flatten hierarchy dile into list of contents of file names
   hierarchy:
     - from: hierarchyData
     - fieldProcess:
@@ -202,9 +221,22 @@ pipelines:
           entity: entity
           id_: id_
           _dirpath: _dirpath
+    
+    - filter:
+        field: entity
+        check: exists
+        
+    - emit: 
+        name: debug
 
   task:
     - from: taskDocs
+
+    - uuid:
+        value: "DocumentReference/{{row.specimen_id}}--{{row.enity.file_handle.etag}}"
+        field: document_reference_id
+        namespace: 'aced-idp.org'
+
     - map:
         method: fix
         gpython: |
@@ -213,7 +245,7 @@ pipelines:
             docRef = []
             if 'entity' in row:
               file_handle = row['entity']['file_handle']
-              dID = file_handle['etag']
+              dID = row["document_reference_id"]
               docRef.append({
                 'type': {
                   'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference',}],
@@ -244,6 +276,10 @@ pipelines:
               'output' : docRef
             }
 
+    - project:
+        mapping:
+          resourceType: Task
+
     - objectValidate:
         schema: "{{config.schema}}"
         title: Task
@@ -251,52 +287,66 @@ pipelines:
     - emit:
         name: Task
 
+
   documentReference:
     - from: taskDocs
+
+    - uuid:
+        value: "DocumentReference/{{row.specimen_id}}--{{row.enity.file_handle.etag}}"
+        field: id
+        namespace: 'aced-idp.org'
+
     - map:
         method: fix
         gpython: |
           def fix(row):
             synapse_id = row["synid"]
             d = {}
-            if 'entity' in row:
-              directory_name = "https://www.synapse.org/#!Synapse:"
-              file_handle = row['entity']['file_handle']
-              d = {
-                'id': file_handle['etag'],
-                'status': 'current',
-                'subject':  {'reference': "Patient/" + row["patient_id"]},
-                'date': file_handle['createdOn'],
-                'identifier': [
-                    {
-                        'system': 'https://www.synapse.org/',
-                        'value': synapse_id
-                    }
-                ],
-                # TODO code, category ?
-                'content': [
-                    {
-                        'attachment': {
-                            'contentType': file_handle['contentType'],
-                            'title': file_handle['fileName'],
-                            'url': directory_name + synapse_id,
-                            'extension': [
-                                {
-                                    "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
-                                    "valueString": file_handle['contentMd5']
-                                }
-                            ],
-                            'size': file_handle['contentSize'],
-                            'creation': file_handle['createdOn'],
-                        }
-                    }
-                ]
-              }
+            directory_name = "https://www.synapse.org/#!Synapse:"
+            file_handle = row['entity']['file_handle']
+            d = {
+              'status': 'current',
+              'subject':  {'reference': "Patient/" + row["patient_id"]},
+              'id' : row['id'],
+              'date': file_handle['createdOn'],
+              'identifier': [
+                  {
+                      'system': 'https://www.synapse.org/',
+                      'value': synapse_id
+                  }
+              ],
+              # TODO code, category ?
+              'content': [
+                  {
+                      'attachment': {
+                          'contentType': file_handle['contentType'],
+                          'title': file_handle['fileName'],
+                          'url': directory_name + synapse_id,
+                          'extension': [
+                              {
+                                  "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
+                                  "valueString": file_handle['contentMd5']
+                              }
+                          ],
+                          'size': file_handle['contentSize'],
+                          'creation': file_handle['createdOn'],
+                      }
+                  }
+              ]
+            }
             return d
+
 
     - filter:
         field: content
         check: exists
+
+    - distinct:
+        value: "{{row.id}}"
+
+    - project:
+        mapping:
+          resourceType: DocumentReference
 
     - objectValidate:
         schema: "{{config.schema}}"
