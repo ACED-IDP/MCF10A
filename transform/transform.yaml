@@ -36,6 +36,7 @@ inputs:
 
 pipelines:
 
+
   researchStudy:
     # Write out the node that represents the entire Research Study
     - from: researchStudyData
@@ -121,7 +122,6 @@ pipelines:
         title: Patient
     - emit: 
         name: Patient
-
 
   specimens:
     - from: sampleAnnotationData
@@ -255,7 +255,7 @@ pipelines:
               })
 
             return {
-              'synid': row["synid"],
+              'identifier':[{'value': synapse_id}],
               'id': row["task_id"],
               'for': {'reference': "Patient/" + row["patient_id"]},
               'focus': {'reference': "Specimen/" + row["specimen_id"]},
