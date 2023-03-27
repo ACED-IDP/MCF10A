@@ -1,0 +1,26 @@
+class: sifter
+name: specimen_transform
+
+outdir: ../output
+
+config:
+  specimenDocs: ../output/transform.specimenDocs.specimenDocs.json.gz
+  schema: ../data_model/generated-json-schema/
+  sampleAnnotations: ../data/raw/sample_annotations.ndjson
+
+inputs:
+  specimenData:
+    plugin:
+      commandLine: python substance_transform.py {{config.sampleAnnotations}} True {{config.specimenDocs}}
+
+pipelines:
+  transform:
+    - from: specimenData
+    - project:
+        mapping:
+          resourceType: Specimen
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Specimen
+    - emit:
+        name: Specimen

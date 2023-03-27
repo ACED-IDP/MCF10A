@@ -54,7 +54,7 @@ export PATH=$PATH:$HOME/go/bin
 
 Build Snakefile
 ```
-lathe plan transform -C .
+lathe plan plan.yaml
 ```
 
 Run build

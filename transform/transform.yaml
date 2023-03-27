@@ -12,6 +12,10 @@ config:
   schema: ../data_model/generated-json-schema/
 
 inputs:
+  substanceData:
+    plugin:
+      commandLine: python substance_transform.py {{config.sampleAnnotations}} False dsfdfdsfsd
+
   researchStudyData:
     embedded:
       - #id: str(uuid.uuid5(ACED_NAMESPACE, PROJECT_ID)),
@@ -35,6 +39,16 @@ inputs:
 
 
 pipelines:
+  transform:
+    - from: substanceData
+    - project:
+        mapping:
+          resourceType: Substance
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Substance
+    - emit:
+        name: Substance
 
 
   researchStudy:
@@ -123,7 +137,7 @@ pipelines:
     - emit: 
         name: Patient
 
-  specimens:
+  specimenDocs:
     - from: sampleAnnotationData
     - uuid:
         value: "Patient/{{row.cellLine}}"
@@ -174,7 +188,8 @@ pipelines:
         schema: "{{config.schema}}"
         title: Specimen
     - emit:
-        name: Specimen
+        name: specimenDocs
+  
 
   # Flatten hierarchy dile into list of contents of file names
   hierarchy:
@@ -225,9 +240,6 @@ pipelines:
     - filter:
         field: entity
         check: exists
-        
-    - emit: 
-        name: debug
 
   task:
     - from: taskDocs
