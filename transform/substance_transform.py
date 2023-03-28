@@ -109,23 +109,44 @@ def emit_specimen(output_path, specimen_line, annotation_line, flag):
 	processing_node =[{"additive":additive_dict, "timeDateTime":time_parser(annotation_line)}]
 	dict_specimen_line['processing']= processing_node
 	dict_specimen_line['resourceType']="Specimen"
-	if (flag == True):
+	if (flag == "Specimen"):
 		print(json.dumps(dict_specimen_line))
 	specimen_ = Specimen.parse_obj(dict_specimen_line)
 	emit(output_path, specimen_)
+	return specimen_
+
+#This leaves out RNASEQ_DATA_FASTQ data counts since spotchecking a few of their synIDS didn't return anything from the SummaryTable
+def emit_observation(output_path, specimen_line,flag,annotation_line):
+	specimen_line = specimen_line.json()
+	Assays = [key.split("QCpass")[0] for key in annotation_line.keys() if "QCpass" in key]
+	#print(Assays)
+	for assay in Assays:
+		subtypes = [key for key in  annotation_line.keys()  if "Level" in key and assay in key]
+		count  = sum(annotation_line[x] != "NA" for x in subtypes)
+
+		observation_dict = {
+			"id": str(uuid.uuid5(ACED_NAMESPACE, (annotation_line["specimenName"] + assay + str(count)))),
+			"resourceType":"Observation",
+			"valueInteger":count,
+			"status":"final",
+			#"category":[{"coding":[{"system":""}]}],
+			"code":{"text":"number of <Aassay> files"}
+		}
+		if (flag == "Observation"):
+			print(json.dumps(observation_dict))
+
+		observation_dict_ = Observation.parse_obj(observation_dict)
 
 
 def transform_directory(file_path, output_path,specimen_path, flag):
 	"""Transform directory listing."""
-	
 
-	flag = flag.lower() in ("true")
 	file_path = pathlib.Path(file_path)
 	output_path = pathlib.Path(output_path)
 	assert file_path.is_file(), f"{file_path} does not exist."
 	assert output_path.is_dir(), f"{output_path} does not exist or is not a directory."
 
-	if flag == False:
+	if flag == "Substance" or flag == "Observation":
 		specimen_path = pathlib.Path("../data/fhir/Pre_Transform/Specimen.ndjson")
 	else:
 		specimen_path = pathlib.Path(specimen_path)
@@ -133,7 +154,6 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 			with open('specimen_for_real.json', 'wb') as f_out:
 				shutil.copyfileobj(f_in, f_out)
 		specimen_path ='specimen_for_real.json'
-
 		
 	with open(file_path, "rt") as fp, open(specimen_path, "rt") as sp:
 		specimen_lines = sp.readlines()
@@ -160,7 +180,7 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 					"code":{"coding":[{"system":site, "code":coding_code}]},
 					"instance":[{"quantity":{"value":int(annotation_line.get("ligandDose")),"unit": annotation_line.get("ligandDoseUnit")}}]
 				}
-				if flag == False:
+				if flag == "Substance":
 					print(json.dumps(substance_dict))
 				substance_dict_ = Substance.parse_obj(substance_dict)
 				emit(output_path, substance_dict_)
@@ -176,16 +196,14 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 					"code":{"coding":[{"system":site, "code":coding_code}]},
 					"instance":[{"quantity":{"value":int(annotation_line.get("secondLigandDose")),"unit":annotation_line.get("secondLigandDoseUnit")}}]
 				}
-				if flag == False:
+				if flag == "Substance":
 					print(json.dumps(substance_dict))
 				substance_dict_ = Substance.parse_obj(substance_dict)
 				emit(output_path, substance_dict_)
 
 					
-			emit_specimen(output_path, specimen_line,annotation_line, flag)
-
-			
-			#emit_task(output_path,annotation_line,specimen_line)
+			specimen_line_new = emit_specimen(output_path, specimen_line,annotation_line, flag)
+			emit_observation(output_path, specimen_line_new,flag,annotation_line)
 		
 	
 	close_all_emitters()

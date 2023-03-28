@@ -11,7 +11,7 @@ config:
 inputs:
   specimenData:
     plugin:
-      commandLine: python substance_transform.py {{config.sampleAnnotations}} True {{config.specimenDocs}}
+      commandLine: python substance_transform.py {{config.sampleAnnotations}} Specimen {{config.specimenDocs}}
 
 pipelines:
   transform:

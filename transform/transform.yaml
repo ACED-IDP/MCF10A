@@ -14,7 +14,11 @@ config:
 inputs:
   substanceData:
     plugin:
-      commandLine: python substance_transform.py {{config.sampleAnnotations}} False dsfdfdsfsd
+      commandLine: python substance_transform.py {{config.sampleAnnotations}} Substance ../data/fhir/Pre_Transform/Specimen.ndjson
+
+  ObservationData:
+    plugin:
+      commandLine: python substance_transform.py {{config.sampleAnnotations}} Observation ../data/fhir/Pre_Transform/Specimen.ndjson
 
   researchStudyData:
     embedded:
@@ -49,6 +53,18 @@ pipelines:
         title: Substance
     - emit:
         name: Substance
+
+  
+  transform_observation:
+    - from: ObservationData
+    - project:
+        mapping:
+          resourceType: Observation
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Observation
+    - emit:
+        name: Observation
 
 
   researchStudy:
