@@ -92,20 +92,29 @@ def populate_additive(ligand):
 	return additive_dict
 
 # Note: MDACC_name didn't make it into the translation
-def emit_specimen(output_path, specimen_line, annotation_line, flag):
+def emit_specimen(output_path, specimen_line, annotation_line, flag,substances):
+
+	first_ligand = annotation_line['ligand'] + '-' + str(annotation_line['ligandDose'])
+	second_ligand = annotation_line['secondLigand'] + '-' + str(annotation_line['secondLigandDose'])
+	first_ligand_index, second_ligand_index = 0, 0 
+
+	#print("THE VALUE OF SUBSTANCES ",substances)
+	for i, s in enumerate(substances):
+		if first_ligand in s:
+			first_ligand_index = i
+		if second_ligand in s:
+			second_ligand_index = i
 
 	additive_dict = []
 	dict_specimen_line = json.loads(specimen_line)
 	specimenID = [{"value": annotation_line.get('specimenID')}]
 	dict_specimen_line['identifier']= specimenID
-	first_ligand = annotation_line['ligand'] + '-' +  str(annotation_line['ligandDose'])
-	second_ligand = annotation_line['secondLigand'] + '-' + str(annotation_line['secondLigandDose'])
-
-	additive_dict.append(populate_additive(first_ligand))
+	additive_dict.append(populate_additive(substances[first_ligand_index]))
 
 	if annotation_line.get("secondLigand") != 'none':
-		additive_dict.append(populate_additive(second_ligand))
+		additive_dict.append(populate_additive(substances[second_ligand_index]))
 
+	print("THE VALUE OF ADDITIVE_DICT ",additive_dict)
 	processing_node =[{"additive":additive_dict, "timeDateTime":time_parser(annotation_line)}]
 	dict_specimen_line['processing']= processing_node
 	dict_specimen_line['resourceType']="Specimen"
@@ -120,18 +129,48 @@ def emit_observation(output_path, specimen_line,flag,annotation_line):
 	specimen_line = specimen_line.json()
 	Assays = [key.split("QCpass")[0] for key in annotation_line.keys() if "QCpass" in key]
 	#print(Assays)
+	assay_mappings = {
+              'ATACseq': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010038',
+                          'BAO:0010038',
+                          'ATAC-seq epigenetic profiling assay'],
+              'Cyclic Immunoflourescence': [' https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C181929',
+                          'NCIT:C181929',
+                          'Tissue-Based Cyclic Immunofluorescence'],
+              'GCP': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010039',
+                          'BAO:0010039',
+                          'Global chromatin epigenetic profiling assay'],
+              'IF': [' https://www.ebi.ac.uk/ols4/ontologies/mmo/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FMMO_0000662',
+                          'MMO:0000662',
+                          'Immunofluorescence'],
+              'L1000': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010046',
+                          'BAO:0010046',
+                          'ATAC-seq epigenetic profiling assay'],
+              'live cell imaging': [' https://www.ebi.ac.uk/ols4/ontologies/chebi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FCHEBI_39442',
+                          'CHEBI:39442',
+                          'fluorescent probe live cell imaging'],
+              'RNAseq': [' https://www.ebi.ac.uk/ols4/ontologies/obi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FOBI_0001177',
+                          'OBI:0001177',
+                          'RNA sequencing assay'],
+              'RPPA':  ['https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C184797',
+                          'NCIT:C184797',
+                          'Reverse Phase Protein Array']
+    }
+
 	for assay in Assays:
 		subtypes = [key for key in  annotation_line.keys()  if "Level" in key and assay in key]
 		count  = sum(annotation_line[x] != "NA" for x in subtypes)
+		synapse_id = annotation_line
 
+		mappings = assay_mappings[assay[:-1]]
 		observation_dict = {
 			"id": str(uuid.uuid5(ACED_NAMESPACE, (annotation_line["specimenName"] + assay + str(count)))),
 			"resourceType":"Observation",
 			"valueInteger":count,
 			"status":"final",
-			#"category":[{"coding":[{"system":""}]}],
-			"code":{"text":"number of <Aassay> files"}
-		}
+			"category":[{"coding":[{"code":"https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory"}]}],
+			"code":{"coding":[{"system":mappings[0], "code":mappings[1]}],"text":mappings[2]}
+		} 
+		
 		if (flag == "Observation"):
 			print(json.dumps(observation_dict))
 
@@ -160,21 +199,29 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 		#task_lines = tp.readlines()
 		annotation_lines = fp.readlines()
 
-		substances = []
+		substances, unique_substances = [], []
 		for annotation_line, specimen_line in zip(annotation_lines,specimen_lines):
 			if not annotation_line or not specimen_line:
 				continue
 			
 			annotation_line = json.loads(annotation_line)
-			first_ligand = annotation_line['ligand'] + '-' +  str(annotation_line['ligandDose'])
-			second_ligand = annotation_line['secondLigand'] + '-' + str(annotation_line['secondLigandDose'])
+			
+			first_ligand = annotation_line['ligand'] + '-' + \
+							str(annotation_line['ligandDose'])
+			
+			fl_Unique = first_ligand + '-' + str(annotation_line['specimenName'])
+							
+			second_ligand = annotation_line['secondLigand'] + '-' + \
+							str(annotation_line['secondLigandDose'])
+			
+			sl_Unique = second_ligand + '-' + str(annotation_line['specimenName'])
 
-	
-			if first_ligand != 'none-0' and first_ligand not in substances:
+			if first_ligand not in substances:
 				substances.append(first_ligand)
+				unique_substances.append(fl_Unique)
 				coding_code, site = code_mappings(annotation_line.get('ligand'))
 				substance_dict = {
-					"id": substance_id(first_ligand),
+					"id": substance_id(fl_Unique),
 					"resourceType":"Substance",
 					"category":[{"coding":[{"system":"http://terminology.hl7.org/CodeSystem/substance-category#chemical"}]}],
 					"code":{"coding":[{"system":site, "code":coding_code}]},
@@ -186,11 +233,12 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 				emit(output_path, substance_dict_)
 
 
-			if second_ligand != 'none-0' and second_ligand not in substances:
+			if second_ligand != "none-0" and second_ligand not in substances:
 				substances.append(second_ligand)
+				unique_substances.append(sl_Unique)
 				coding_code, site = code_mappings(annotation_line.get('secondLigand'))
 				substance_dict = {
-					"id": substance_id(second_ligand),
+					"id": substance_id(sl_Unique),
 					"resourceType":"Substance",
 					"category":[{"coding":[{"code":"http://terminology.hl7.org/CodeSystem/substance-category#chemical"}]}],
 					"code":{"coding":[{"system":site, "code":coding_code}]},
@@ -202,11 +250,9 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 				emit(output_path, substance_dict_)
 
 					
-			specimen_line_new = emit_specimen(output_path, specimen_line,annotation_line, flag)
+			specimen_line_new = emit_specimen(output_path, specimen_line,annotation_line, flag, unique_substances)
 			emit_observation(output_path, specimen_line_new,flag,annotation_line)
 		
-	
 	close_all_emitters()
-	
 
 transform_directory(sys.argv[1],FHIR_DATA_PATH,sys.argv[3],sys.argv[2])

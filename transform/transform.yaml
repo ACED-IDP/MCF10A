@@ -1,4 +1,3 @@
-
 class: sifter
 name: transform
 
@@ -228,10 +227,40 @@ pipelines:
         gpython: | 
           def flatten(row):
             out = []
+            mappings = {
+              'ATACseq': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010038',
+                          'BAO:0010038',
+                          'ATAC-seq epigenetic profiling assay'],
+              'Cyclic Immunoflourescence': [' https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C181929',
+                          'NCIT:C181929',
+                          'Tissue-Based Cyclic Immunofluorescence'],
+              'GCP': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010039',
+                          'BAO:0010039',
+                          'Global chromatin epigenetic profiling assay'],
+              'IF': [' https://www.ebi.ac.uk/ols4/ontologies/mmo/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FMMO_0000662',
+                          'MMO:0000662',
+                          'Immunofluorescence'],
+              'L1000': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010046',
+                          'BAO:0010046',
+                          'ATAC-seq epigenetic profiling assay'],
+              'live cell imaging': [' https://www.ebi.ac.uk/ols4/ontologies/chebi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FCHEBI_39442',
+                          'CHEBI:39442',
+                          'fluorescent probe live cell imaging'],
+              'RNAseq': [' https://www.ebi.ac.uk/ols4/ontologies/obi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FOBI_0001177',
+                          'OBI:0001177',
+                          'RNA sequencing assay'],
+              'RPPA':  ['https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C184797',
+                          'NCIT:C184797',
+                          'Reverse Phase Protein Array']
+            }
             for k, v in row.items():
               if v.startswith("syn"):
+                arr = mappings[k.split("_")[0]]
                 out.append({
                   "assay_name": k,
+                  "system":arr[0],
+                  "code":arr[1],
+                  "text":arr[2],
                   "synid": v,
                   "patient_id": row["patient_id"],
                   "specimen_id": row["specimen_id"],
@@ -289,6 +318,13 @@ pipelines:
               'focus': {'reference': "Specimen/" + row["specimen_id"]},
               'status': 'completed',
               'intent': 'order',
+              'code': {
+                'coding': [{
+                    'system': row["system"], 
+                    'code': row["code"]
+                  }],
+                  'text': row["text"]
+              },
               'input': [
                   {
                       'type': {
