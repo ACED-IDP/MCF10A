@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import click
 import pathlib
 import logging
 import uuid
@@ -12,7 +11,6 @@ import shutil
 from fhir.resources.specimen import Specimen
 from fhir.resources.substance import Substance
 
-from fhir.resources.task import Task
 from fhir.resources.observation import Observation
 from fhir.resources.domainresource import DomainResource
 
@@ -167,8 +165,9 @@ def emit_observation(output_path, specimen_line,flag,annotation_line):
 			"resourceType":"Observation",
 			"valueInteger":count,
 			"status":"final",
-			"category":[{"coding":[{"code":"https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory"}]}],
-			"code":{"coding":[{"system":mappings[0], "code":mappings[1]}],"text":mappings[2]}
+			"category":[{"coding":[{"code":"https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory","display":"laboratory"}]}],
+			"code":{"coding":[{"system":mappings[0], "code":mappings[1],"display":f'{str(count)} samples per time point'}],"text":mappings[2]},
+			#"valueCodeableConcept":{"coding":[{"display":str(count)}]}
 		} 
 		
 		if (flag == "Observation"):
@@ -196,7 +195,6 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 		
 	with open(file_path, "rt") as fp, open(specimen_path, "rt") as sp:
 		specimen_lines = sp.readlines()
-		#task_lines = tp.readlines()
 		annotation_lines = fp.readlines()
 
 		substances, unique_substances = [], []
