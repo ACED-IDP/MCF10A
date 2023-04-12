@@ -112,7 +112,7 @@ def emit_specimen(output_path, specimen_line, annotation_line, flag,substances):
 	if annotation_line.get("secondLigand") != 'none':
 		additive_dict.append(populate_additive(substances[second_ligand_index]))
 
-	print("THE VALUE OF ADDITIVE_DICT ",additive_dict)
+	#print("THE VALUE OF ADDITIVE_DICT ",additive_dict)
 	processing_node =[{"additive":additive_dict, "timeDateTime":time_parser(annotation_line)}]
 	dict_specimen_line['processing']= processing_node
 	dict_specimen_line['resourceType']="Specimen"
