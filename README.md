@@ -14,8 +14,8 @@ git submodule update
 Setup python env
 ```
 python3 -m venv venv ; source venv/bin/activate
-pip intall -r requirements.txt
-pip intall -e .
+pip install -r requirements.txt
+pip install -e .
 ```
 
 
