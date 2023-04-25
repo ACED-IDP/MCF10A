@@ -114,9 +114,17 @@ pipelines:
           study: {"reference": "ResearchStudy/{{row.study_id}}"}
           status: 'on-study'
     # If object validation is off here, a bunch of extra fields will be generated.
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: ResearchSubject
+    - clean:
+        fields:
+          - id
+          - resourceType
+          - subject
+          - study
+          - status
+        
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: ResearchSubject
     - emit:
         name: ResearchSubject
 
