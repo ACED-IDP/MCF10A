@@ -10,15 +10,11 @@ import shutil
 
 from fhir.resources.specimen import Specimen
 from fhir.resources.substance import Substance
-
 from fhir.resources.observation import Observation
-from fhir.resources.domainresource import DomainResource
 
 EMITTERS = {}
-ALREADY_EMITTED = set()
 FHIR_DATA_PATH = pathlib.Path('../data/fhir')
 FHIR_SPECIMEN_PATH = pathlib.Path('../output/transform.specimenDocs.specimenDocs.json.gz')
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,19 +24,6 @@ def close_all_emitters():
     """Close all emitters."""
     for _ in EMITTERS.values():
         _.close()
-
-def emit(output_path: pathlib.Path, resource: DomainResource):
-	"""Serialize to ndjson."""
-	if resource.relative_path() not in ALREADY_EMITTED:
-		if resource.resource_type not in EMITTERS:
-			EMITTERS[resource.resource_type] = open(output_path / f"{resource.resource_type}.ndjson", "w")
-		EMITTERS[resource.resource_type].write(resource.json())
-
-		if resource.resource_type not in EMITTERS:
-			EMITTERS[resource.resource_type] = open(output_path / f"{resource.resource_type}.ndjson", "w")
-		EMITTERS[resource.resource_type].write('\n')
-
-	ALREADY_EMITTED.add(resource.relative_path())
 
 def substance_id(ligand_combo):
 	return str(uuid.uuid5(ACED_NAMESPACE, ligand_combo))
@@ -96,7 +79,6 @@ def emit_specimen(output_path, specimen_line, annotation_line, flag,substances):
 	second_ligand = annotation_line['secondLigand'] + '-' + str(annotation_line['secondLigandDose'])
 	first_ligand_index, second_ligand_index = 0, 0 
 
-	#print("THE VALUE OF SUBSTANCES ",substances)
 	for i, s in enumerate(substances):
 		if first_ligand in s:
 			first_ligand_index = i
@@ -112,21 +94,18 @@ def emit_specimen(output_path, specimen_line, annotation_line, flag,substances):
 	if annotation_line.get("secondLigand") != 'none':
 		additive_dict.append(populate_additive(substances[second_ligand_index]))
 
-	#print("THE VALUE OF ADDITIVE_DICT ",additive_dict)
 	processing_node =[{"additive":additive_dict, "timeDateTime":time_parser(annotation_line)}]
 	dict_specimen_line['processing']= processing_node
 	dict_specimen_line['resourceType']="Specimen"
 	if (flag == "Specimen"):
 		print(json.dumps(dict_specimen_line))
 	specimen_ = Specimen.parse_obj(dict_specimen_line)
-	emit(output_path, specimen_)
 	return specimen_
 
 #This leaves out RNASEQ_DATA_FASTQ data counts since spotchecking a few of their synIDS didn't return anything from the SummaryTable
 def emit_observation(output_path, specimen_line,flag,annotation_line):
 	specimen_line = specimen_line.json()
 	Assays = [key.split("QCpass")[0] for key in annotation_line.keys() if "QCpass" in key]
-	#print(Assays)
 	assay_mappings = {
               'ATACseq': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010038',
                           'BAO:0010038',
@@ -166,7 +145,7 @@ def emit_observation(output_path, specimen_line,flag,annotation_line):
 			"valueInteger":count,
 			"status":"final",
 			"category":[{"coding":[{"code":"https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory","display":"laboratory"}]}],
-			"code":{"coding":[{"system":mappings[0], "code":mappings[1],"display":f'{str(count)} samples per time point'}],"text":mappings[2]},
+			"code":{"coding":[{"system":mappings[0], "code":mappings[1],"display":f'{str(count)} samples per time point'}],"text":mappings[2]}
 			#"valueCodeableConcept":{"coding":[{"display":str(count)}]}
 		} 
 		
@@ -222,13 +201,25 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 					"id": substance_id(fl_Unique),
 					"resourceType":"Substance",
 					"category":[{"coding":[{"system":"http://terminology.hl7.org/CodeSystem/substance-category#chemical"}]}],
-					"code":{"coding":[{"system":site, "code":coding_code}]},
-					"instance":[{"quantity":{"value":int(annotation_line.get("ligandDose")),"unit": annotation_line.get("ligandDoseUnit")}}]
+					"code":
+					{
+						"concept":{
+							"coding":[{
+								"system":site, "code":coding_code
+								}]
+						}
+					},
+					"quantity":{
+						"value":str(annotation_line['ligandDose']),
+						"unit": str(annotation_line['ligandDoseUnit'])
+					},
+					"instance":False
+
 				}
+				
 				if flag == "Substance":
 					print(json.dumps(substance_dict))
 				substance_dict_ = Substance.parse_obj(substance_dict)
-				emit(output_path, substance_dict_)
 
 
 			if second_ligand != "none-0" and second_ligand not in substances:
@@ -239,13 +230,24 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 					"id": substance_id(sl_Unique),
 					"resourceType":"Substance",
 					"category":[{"coding":[{"code":"http://terminology.hl7.org/CodeSystem/substance-category#chemical"}]}],
-					"code":{"coding":[{"system":site, "code":coding_code}]},
-					"instance":[{"quantity":{"value":int(annotation_line.get("secondLigandDose")),"unit":annotation_line.get("secondLigandDoseUnit")}}]
+					"code":
+					{
+						"concept":{
+							"coding":[{
+								"system":site, "code":coding_code
+							}]
+						},
+					},
+					"quantity":{
+						"value":str(annotation_line['secondLigandDose']),
+						"unit": str(annotation_line['secondLigandDoseUnit'])
+					},
+					"instance":False
+
 				}
 				if flag == "Substance":
 					print(json.dumps(substance_dict))
 				substance_dict_ = Substance.parse_obj(substance_dict)
-				emit(output_path, substance_dict_)
 
 					
 			specimen_line_new = emit_specimen(output_path, specimen_line,annotation_line, flag, unique_substances)

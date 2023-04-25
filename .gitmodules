@@ -1,3 +1,6 @@
 [submodule "data_model"]
 	path = data_model
 	url = https://github.com/ACED-IDP/data_model.git
+[submodule "iceberg"]
+	path = iceberg
+	url = https://github.com/bmeg/iceberg.git

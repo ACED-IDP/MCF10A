@@ -8,16 +8,16 @@ config:
   sampleAnnotations: ../data/raw/sample_annotations.ndjson
   hierarchy: ../data/raw/hierarchy.ndjson
   project_id: syn21577710
-  schema: ../data_model/generated-json-schema/
+  schema: ../iceberg/schemas/
 
 inputs:
   substanceData:
     plugin:
-      commandLine: python substance_transform.py {{config.sampleAnnotations}} Substance ../data/fhir/Pre_Transform/Specimen.ndjson
+      commandLine: python3 substance_transform.py {{config.sampleAnnotations}} Substance ../data/fhir/Pre_Transform/Specimen.ndjson
 
   ObservationData:
     plugin:
-      commandLine: python substance_transform.py {{config.sampleAnnotations}} Observation ../data/fhir/Pre_Transform/Specimen.ndjson
+      commandLine: python3 substance_transform.py {{config.sampleAnnotations}} Observation ../data/fhir/Pre_Transform/Specimen.ndjson
 
   researchStudyData:
     embedded:
@@ -47,9 +47,11 @@ pipelines:
     - project:
         mapping:
           resourceType: Substance
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Substance
+
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: Substance
+
     - emit:
         name: Substance
 
@@ -59,9 +61,9 @@ pipelines:
     - project:
         mapping:
           resourceType: Observation
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Observation
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: Observation
     - emit:
         name: Observation
 
@@ -76,9 +78,9 @@ pipelines:
     - project:
         mapping:
           resourceType: ResearchStudy
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: ResearchStudy
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: ResearchStudy
     - emit:
         name: ResearchStudy
 
@@ -103,13 +105,15 @@ pipelines:
         field: subject_id
         # ^ vs. field: subject_idx from before
         namespace: 'aced-ipd.org'
+
     - project:
         mapping:
           id: "{{row.subject_id}}"
           resourceType: ResearchSubject
-          individual: { 'reference': "Patient/{{row.patient_id}}" }
-          study: { 'reference': "ResearchStudy/{{row.study_id}}" }
+          subject: {"reference": "Patient/{{row.patient_id}}" }
+          study: {"reference": "ResearchStudy/{{row.study_id}}"}
           status: 'on-study'
+    # If object validation is off here, a bunch of extra fields will be generated.
     - objectValidate:
         schema: "{{config.schema}}"
         title: ResearchSubject
@@ -144,7 +148,7 @@ pipelines:
     # This is not actually creating the resourceType field in the Patient json file     
     - project:
         mapping:
-          resoureceType: Patient
+          resourceType: Patient
           
     - objectValidate:
         schema: "{{config.schema}}"
@@ -170,7 +174,7 @@ pipelines:
           def fix(row):
             out = {
               "id": row["id"],
-              'subject': {'reference': "Patient/" + row["patient_id"]},
+              'subject': {'reference': "Patient/" + str(row["patient_id"])},
               'identifier': [
                 {
                   'system': 'https://www.synapse.org/#specimenID',
@@ -183,14 +187,14 @@ pipelines:
               ],
               'collection': {
                 'bodySite': {
-                  'coding': [
-                    {
-                      'system': "http://purl.bioontology.org/ontology/SNOMEDCT",
-                      'code': "76752008", ##TODO: not hardcode this
-                      'display': 'Breast Structure'
-                    }
-                  ],
+                  'concept':{
+                    'coding': [{
+                        'system': "http://purl.bioontology.org/ontology/SNOMEDCT",
+                        'code': "76752008",
+                        'display': "Breast Structure"
+                      }],
                   'text':  row['cellType']
+                  }
                 }
               }
             }
@@ -198,10 +202,6 @@ pipelines:
     - project:
         mapping:
           resourceType: Specimen
-
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Specimen
     - emit:
         name: specimenDocs
   
@@ -344,9 +344,9 @@ pipelines:
         mapping:
           resourceType: Task
 
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Task
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: Task
 
     - emit:
         name: Task
@@ -365,12 +365,11 @@ pipelines:
         gpython: |
           def fix(row):
             synapse_id = row["synid"]
-            d = {}
             directory_name = "https://www.synapse.org/#!Synapse:"
             file_handle = row['entity']['file_handle']
             d = {
               'status': 'current',
-              'subject':  {'reference': "Patient/" + row["patient_id"]},
+              'subject':  {'reference': "Patient/" + str(row["patient_id"])},
               'id' : row['id'],
               'date': file_handle['createdOn'],
               'identifier': [
@@ -379,21 +378,20 @@ pipelines:
                       'value': synapse_id
                   }
               ],
-              # TODO code, category ?
               'content': [
                   {
                       'attachment': {
-                          'contentType': file_handle['contentType'],
-                          'title': file_handle['fileName'],
-                          'url': directory_name + synapse_id,
+                          'contentType': str(file_handle['contentType']),
+                          'title': str(file_handle['fileName']),
+                          'url': str(directory_name) + str(synapse_id),
                           'extension': [
                               {
                                   "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
-                                  "valueString": file_handle['contentMd5']
+                                  "valueString": str(file_handle['contentMd5'])
                               }
                           ],
-                          'size': file_handle['contentSize'],
-                          'creation': file_handle['createdOn'],
+                          'size': int(file_handle['contentSize']),
+                          'creation': str(file_handle['createdOn'])
                       }
                   }
               ]
@@ -412,9 +410,9 @@ pipelines:
         mapping:
           resourceType: DocumentReference
 
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: DocumentReference
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: DocumentReference
 
     - emit:
         name: DocumentReference

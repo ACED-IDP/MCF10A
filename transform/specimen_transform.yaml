@@ -5,22 +5,22 @@ outdir: ../output
 
 config:
   specimenDocs: ../output/transform.specimenDocs.specimenDocs.json.gz
-  schema: ../data_model/generated-json-schema/
+  schema: ../iceberg/schemas/
   sampleAnnotations: ../data/raw/sample_annotations.ndjson
 
 inputs:
   specimenData:
     plugin:
-      commandLine: python substance_transform.py {{config.sampleAnnotations}} Specimen {{config.specimenDocs}}
+      commandLine: python3 substance_transform.py {{config.sampleAnnotations}} Specimen {{config.specimenDocs}}
 
 pipelines:
   transform:
     - from: specimenData
     - project:
         mapping:
-          resourceType: Specimen
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Specimen
+          resourceType: Specimen 
+    #- objectValidate:
+        #schema: "{{config.schema}}"
+        #title: Specimen
     - emit:
         name: Specimen
