@@ -19,8 +19,8 @@ pipelines:
     - project:
         mapping:
           resourceType: Specimen 
-    #- objectValidate:
-        #schema: "{{config.schema}}"
-        #title: Specimen
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Specimen
     - emit:
         name: Specimen

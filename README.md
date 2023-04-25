@@ -38,8 +38,10 @@ export $(cat Secrets/.env | xargs)
 Install GO (at least Go 1.19): https://go.dev/dl/
 
 ### Sifter / Lathe
+Clean your cache if you are expecting a new version of sifter/lathe to be downloaded
 
 ```
+go clean -modcache
 go install github.com/bmeg/sifter@latest
 go install github.com/bmeg/lathe@latest
 ```

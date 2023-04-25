@@ -210,7 +210,7 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 						}
 					},
 					"quantity":{
-						"value":str(annotation_line['ligandDose']),
+						"value": int(annotation_line['ligandDose']),
 						"unit": str(annotation_line['ligandDoseUnit'])
 					},
 					"instance":False
@@ -239,7 +239,7 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 						},
 					},
 					"quantity":{
-						"value":str(annotation_line['secondLigandDose']),
+						"value":int(annotation_line['secondLigandDose']),
 						"unit": str(annotation_line['secondLigandDoseUnit'])
 					},
 					"instance":False
