@@ -7,6 +7,7 @@ import math
 import sys
 import gzip
 import shutil
+import os
 
 from fhir.resources.specimen import Specimen
 from fhir.resources.substance import Substance
@@ -30,23 +31,23 @@ def substance_id(ligand_combo):
 
 def code_mappings(ligand):
 	mappings = {
-		'BMP2': 'CHEMBL1926496',
-		'EGF': 'ENSG00000138798',
-		'HGF': 'ENSG00000019991',
-		'IFNG': 'ENSG00000111537',
-		'OSM': 'ENSG00000099985',
-		'PBS': 'CHEMBL259100',
-		'TGFB': 'CHEMBL1795178',
-		'ctrl': 'NA'
+		'BMP2': ['CHEMBL1926496','Bone Morphogenetic Protein 2'],
+		'EGF': ['ENSG00000138798','Epidermal Growth Factor'],
+		'HGF': ['ENSG00000019991','Hepatocyte Growth Factor'],
+		'IFNG': ['ENSG00000111537','Interferon Gamma'],
+		'OSM': ['ENSG00000099985', 'Oncostatin M'],
+		'PBS': ['CHEMBL259100', 'Undefined'],
+		'TGFB': ['CHEMBL1795178','Transforming Growth Factor Beta-1'],
+		'ctrl': ['NA','NA']
 		}
 
 	for key in mappings:
 		if key == ligand:
-			if mappings[key][:2] == "EN":
+			if mappings[key][0][:2] == "EN":
 				return mappings[key], "https://useast.ensembl.org/Homo_sapiens/Gene/"
-			elif mappings[key][:2] == "CH":
+			elif mappings[key][0][:2] == "CH":
 				return mappings[key], "https://www.ebi.ac.uk/chembl/g/#search_results/all/"
-			elif mappings[key][:2] == "NA": 
+			elif mappings[key][0][:2] == "NA": 
 				return "NA", "NA"	
 			
 	assert(False),f"ERROR, ligand {ligand} does not have a code mapping"
@@ -87,9 +88,11 @@ def emit_specimen(output_path, specimen_line, annotation_line, flag,substances):
 
 	additive_dict = []
 	dict_specimen_line = json.loads(specimen_line)
-	specimenID = [{"value": annotation_line.get('specimenID')}]
-	dict_specimen_line['identifier']= specimenID
-	additive_dict.append(populate_additive(substances[first_ligand_index]))
+	# these operations were overwriting identifiers that were coming from sifter
+	#specimenID = [{"value": annotation_line.get('specimenID')}]
+	#dict_specimen_line['identifier']= specimenID
+	if annotation_line.get("ligand") != 'ctrl':
+		additive_dict.append(populate_additive(substances[first_ligand_index]))
 
 	if annotation_line.get("secondLigand") != 'none':
 		additive_dict.append(populate_additive(substances[second_ligand_index]))
@@ -107,31 +110,32 @@ def emit_observation(output_path, specimen_line,flag,annotation_line):
 	specimen_line = specimen_line.json()
 	Assays = [key.split("QCpass")[0] for key in annotation_line.keys() if "QCpass" in key]
 	assay_mappings = {
-              'ATACseq': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010038',
-                          'BAO:0010038',
-                          'ATAC-seq epigenetic profiling assay'],
-              'Cyclic Immunoflourescence': [' https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C181929',
-                          'NCIT:C181929',
+              'ATACseq': ['https://ontobee.org/ontology/BAO',
+                          '0010038',
+                          'ATAC-seq Epigenetic Profiling Assay'],
+              'Cyclic Immunoflourescence': ['https://ontobee.org/ontology/NCIT',
+                          'C181929',
                           'Tissue-Based Cyclic Immunofluorescence'],
-              'GCP': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010039',
-                          'BAO:0010039',
-                          'Global chromatin epigenetic profiling assay'],
-              'IF': [' https://www.ebi.ac.uk/ols4/ontologies/mmo/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FMMO_0000662',
-                          'MMO:0000662',
+              'GCP': ['https://ontobee.org/ontology/BAO',
+                          '0010039',
+                          'Global Chromatin Epigenetic Profiling Assay'],
+              'IF': ['https://ontobee.org/ontology/MMO',
+                          '0000662',
                           'Immunofluorescence'],
-              'L1000': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010046',
-                          'BAO:0010046',
-                          'ATAC-seq epigenetic profiling assay'],
-              'live cell imaging': [' https://www.ebi.ac.uk/ols4/ontologies/chebi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FCHEBI_39442',
-                          'CHEBI:39442',
-                          'fluorescent probe live cell imaging'],
-              'RNAseq': [' https://www.ebi.ac.uk/ols4/ontologies/obi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FOBI_0001177',
-                          'OBI:0001177',
+              'L1000': ['https://ontobee.org/ontology/BAO',
+                          '0010046',
+                          'ATAC-seq Epigenetic Profiling Assay'],
+              'live cell imaging': ['https://ontobee.org/ontology/CHEBI',
+                          '39442',
+                          'Fluorescent Probe Live Cell Imaging'],
+              'RNAseq': ['https://ontobee.org/ontology/OBI',
+                          '0001177',
                           'RNA sequencing assay'],
-              'RPPA':  ['https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C184797',
-                          'NCIT:C184797',
+              'RPPA':  ['https://ontobee.org/ontology/NCIT',
+                          'C184797',
                           'Reverse Phase Protein Array']
     }
+    
 
 	for assay in Assays:
 		subtypes = [key for key in  annotation_line.keys()  if "Level" in key and assay in key]
@@ -144,8 +148,26 @@ def emit_observation(output_path, specimen_line,flag,annotation_line):
 			"resourceType":"Observation",
 			"valueInteger":count,
 			"status":"final",
-			"category":[{"coding":[{"code":"https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory","display":"laboratory"}]}],
-			"code":{"coding":[{"system":mappings[0], "code":mappings[1],"display":f'{str(count)} samples per time point'}],"text":mappings[2]}
+			"category":
+				[{"coding":
+					[{
+						"system":"https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory",
+						"code": "laboratory",
+						"display":"laboratory"
+					}]
+				}],
+			"code":{
+				"coding":
+     				[{
+						"system":mappings[0], 
+						"code":mappings[1],
+						"display":f'{str(count)} samples per time point'
+					}],
+				"text":mappings[2]
+			},
+			"specimen":{"reference":str(uuid.uuid5(ACED_NAMESPACE, ("Specimen/" + annotation_line["specimenName"])))},
+			"subject":{"reference":str(uuid.uuid5(ACED_NAMESPACE, ("Patient/" + annotation_line["cellLine"])))}
+
 			#"valueCodeableConcept":{"coding":[{"display":str(count)}]}
 		} 
 		
@@ -193,20 +215,29 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 			
 			sl_Unique = second_ligand + '-' + str(annotation_line['specimenName'])
 
-			if first_ligand not in substances:
+			if first_ligand != "ctrl-0" and first_ligand not in substances:
 				substances.append(first_ligand)
 				unique_substances.append(fl_Unique)
 				coding_code, site = code_mappings(annotation_line.get('ligand'))
 				substance_dict = {
 					"id": substance_id(fl_Unique),
 					"resourceType":"Substance",
-					"category":[{"coding":[{"system":"http://terminology.hl7.org/CodeSystem/substance-category#chemical"}]}],
+					"category":[{
+						"coding":[{
+							"system":"http://terminology.hl7.org/CodeSystem/substance-category#chemical",
+							"code": "chemical",
+							"display": "chemical"
+						}]
+					}],
 					"code":
 					{
 						"concept":{
 							"coding":[{
-								"system":site, "code":coding_code
-								}]
+								"system":site, 
+								"code":coding_code[0],
+								"display":coding_code[1]
+								}],
+							"text":coding_code[1]
 						}
 					},
 					"quantity":{
@@ -229,13 +260,22 @@ def transform_directory(file_path, output_path,specimen_path, flag):
 				substance_dict = {
 					"id": substance_id(sl_Unique),
 					"resourceType":"Substance",
-					"category":[{"coding":[{"code":"http://terminology.hl7.org/CodeSystem/substance-category#chemical"}]}],
+					"category":[{
+						"coding":[{
+							"system":"http://terminology.hl7.org/CodeSystem/substance-category#chemical",
+							"code": "chemical",
+							"display": "chemical"
+							}]
+						}],
 					"code":
 					{
 						"concept":{
 							"coding":[{
-								"system":site, "code":coding_code
-							}]
+								"system":site, 
+								"code":coding_code[0],
+								"display":coding_code[1]
+							}],
+							"text":coding_code[1]
 						},
 					},
 					"quantity":{

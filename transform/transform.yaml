@@ -204,9 +204,6 @@ pipelines:
         mapping:
           resourceType: Specimen
 
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Specimen
     - emit:
         name: specimenDocs
   
@@ -233,29 +230,29 @@ pipelines:
           def flatten(row):
             out = []
             mappings = {
-              'ATACseq': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010038',
-                          'BAO:0010038',
-                          'ATAC-seq epigenetic profiling assay'],
-              'Cyclic Immunoflourescence': [' https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C181929',
-                          'NCIT:C181929',
+              'ATACseq': ['https://ontobee.org/ontology/BAO',
+                          '0010038',
+                          'ATAC-seq Epigenetic Profiling Assay'],
+              'Cyclic Immunoflourescence': ['https://ontobee.org/ontology/NCIT',
+                          'C181929',
                           'Tissue-Based Cyclic Immunofluorescence'],
-              'GCP': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010039',
-                          'BAO:0010039',
-                          'Global chromatin epigenetic profiling assay'],
-              'IF': [' https://www.ebi.ac.uk/ols4/ontologies/mmo/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FMMO_0000662',
-                          'MMO:0000662',
+              'GCP': ['https://ontobee.org/ontology/BAO',
+                          '0010039',
+                          'Global Chromatin Epigenetic Profiling Assay'],
+              'IF': ['https://ontobee.org/ontology/MMO',
+                          '0000662',
                           'Immunofluorescence'],
-              'L1000': ['https://www.ebi.ac.uk/ols4/ontologies/bao/classes/http%253A%252F%252Fwww.bioassayontology.org%252Fbao%2523BAO_0010046',
-                          'BAO:0010046',
-                          'ATAC-seq epigenetic profiling assay'],
-              'live cell imaging': [' https://www.ebi.ac.uk/ols4/ontologies/chebi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FCHEBI_39442',
-                          'CHEBI:39442',
-                          'fluorescent probe live cell imaging'],
-              'RNAseq': [' https://www.ebi.ac.uk/ols4/ontologies/obi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FOBI_0001177',
-                          'OBI:0001177',
+              'L1000': ['https://ontobee.org/ontology/BAO',
+                          '0010046',
+                          'ATAC-seq Epigenetic Profiling Assay'],
+              'live cell imaging': ['https://ontobee.org/ontology/CHEBI',
+                          '39442',
+                          'Fluorescent Probe Live Cell Imaging'],
+              'RNAseq': ['https://ontobee.org/ontology/OBI',
+                          '0001177',
                           'RNA sequencing assay'],
-              'RPPA':  ['https://www.ebi.ac.uk/ols4/ontologies/ncit/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FNCIT_C184797',
-                          'NCIT:C184797',
+              'RPPA':  ['https://ontobee.org/ontology/NCIT',
+                          'C184797',
                           'Reverse Phase Protein Array']
             }
             for k, v in row.items():
@@ -310,14 +307,14 @@ pipelines:
               dID = row["document_reference_id"]
               docRef.append({
                 'type': {
-                  'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference',}],
+                  'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference'}],
                   'text': 'DocumentReference'
                 },
                 'valueReference': {'reference': "DocumentReference/" + dID}
               })
 
             return {
-              'identifier':[{'value': synapse_id}],
+              'identifier':[{'value': synapse_id, 'system':'https://www.synapse.org/'}],
               'id': row["task_id"],
               'for': {'reference': "Patient/" + row["patient_id"]},
               'focus': {'reference': "Specimen/" + row["specimen_id"]},
@@ -336,6 +333,7 @@ pipelines:
                           'coding': [{
                               'system': 'http://hl7.org/fhir',
                               'code': 'Specimen',
+                              'display': 'Specimen'
                           }],
                           'text': 'Specimen'
                       },
