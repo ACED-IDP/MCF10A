@@ -76,6 +76,24 @@ transform.specimens.Specimen.json.gz
 transform.task.Task.json.gz
 ```
 
+### Testing
+
+```
+# install dependencies
+
+pip install -r requirements-dev.txt
+
+# test python coding coventions
+
+pytest tests/unit/
+
+# test output
+
+pytest tests/integrations/
+ 
+```
+
+
 ### Uploading into gen3
 
 Refer to DocumentReference.ndjson for the already  translated working data.
