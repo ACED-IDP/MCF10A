@@ -86,15 +86,18 @@ def _are_fhir_conventions_ok(file_path: pathlib.Path) -> bool:
 
     def _check_coding(self: Coding, *args, **kwargs):
         # note `self` is the Coding
-        assert self.code, f"Expected code {resource.id} {self}"
-        assert self.system, f"Expected system {resource.id} {self}"
-        assert self.display, f"Expected display {resource.id} {self}"
+        assert self.code, f"Missing `code` {resource.id} {self}"
+        assert (not self.code.startswith("http")), f"`code` should _not_ be a url http {self.code}"
+        assert ":" not in self.code, f"`code` should not contain ':' {self.code}"
+        assert self.system, f"Missing `system` {resource.id} {self}"
+        assert "%" not in self.system, f"`system` should be a simple url without uuencoding {self.system}"
+        assert self.display, f"Missing `display` {resource.id} {self}"
         return orig_coding_dict(self, *args, **kwargs)
 
     def _check_identifier(self: Identifier, *args, **kwargs):
         # note `self` is the Identifier
-        assert self.value, f"Expected value {resource.id} {self}"
-        assert self.system, f"Expected system {resource.id} {self}"
+        assert self.value, f"Missing `value` {resource.id} {self}"
+        assert self.system, f"Missing `system` {resource.id} {self}"
         return orig_identifier_dict(self, *args, **kwargs)
 
     # monkey patch dict() methods
