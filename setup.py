@@ -4,11 +4,9 @@ See:
 https://packaging.python.org/guides/distributing-packages-using-setuptools/
 """
 
-import setuptools.command.build_py
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
 from os import path
-import subprocess
 
 here = path.abspath(path.dirname(__file__))
 
@@ -144,4 +142,3 @@ setup(
         'Source': 'https://source.ohsu.edu/HOP/data-etl',
     },
 )
-

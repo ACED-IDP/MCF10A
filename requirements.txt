@@ -3,3 +3,4 @@ click
 orjson
 snakemake
 fhir.resources
+pytest
