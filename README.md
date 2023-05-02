@@ -14,8 +14,8 @@ git submodule update
 Setup python env
 ```
 python3 -m venv venv ; source venv/bin/activate
-pip intall -r requirements.txt
-pip intall -e .
+pip install -r requirements.txt
+pip install -e .
 ```
 
 
@@ -38,8 +38,10 @@ export $(cat Secrets/.env | xargs)
 Install GO (at least Go 1.19): https://go.dev/dl/
 
 ### Sifter / Lathe
+Clean your cache if you are expecting a new version of sifter/lathe to be downloaded
 
 ```
+go clean -modcache
 go install github.com/bmeg/sifter@latest
 go install github.com/bmeg/lathe@latest
 ```
@@ -54,7 +56,7 @@ export PATH=$PATH:$HOME/go/bin
 
 Build Snakefile
 ```
-lathe plan transform -C .
+lathe plan plan.yaml
 ```
 
 Run build
@@ -73,6 +75,24 @@ transform.researchSubject.ResearchSubject.json.gz
 transform.specimens.Specimen.json.gz
 transform.task.Task.json.gz
 ```
+
+### Testing
+
+```
+# install dependencies
+
+pip install -r requirements-dev.txt
+
+# test python coding coventions
+
+pytest tests/unit/
+
+# test output
+
+pytest tests/integrations/
+ 
+```
+
 
 ### Uploading into gen3
 

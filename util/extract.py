@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import csv
-import datetime
 import pathlib
 from typing import List, Any
 import dataclasses
@@ -12,10 +11,9 @@ import synapseclient
 import synapseutils
 from typing import Iterator, Dict
 
-from synapseclient import Project, Folder, File, Link
-import shutil
 
 RAW_DATA_PATH = pathlib.Path('data/raw')
+
 
 def read_ndjson(path: str) -> Iterator[Dict]:
     """Read ndjson file, load json line by line."""
@@ -100,7 +98,6 @@ def extract_tree(output_path, project_id):
     def _map_items(items: List[tuple], fetch=True):
         """Transform a list of 2 item tuples to a list of NamedId"""
         return [_map_item(i, fetch) for i in items]
-
 
     # Traverse through the hierarchy of files and folders stored under the synId.
     # https://python-docs.synapse.org/build/html/synapseutils.html#synapseutils.walk_functions.walk

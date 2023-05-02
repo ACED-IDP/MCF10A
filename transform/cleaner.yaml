@@ -1,0 +1,13 @@
+class: sifter
+name: cleaner
+
+config:
+  observation: ../output/transform.transform_observation.Observation.json.gz
+
+outdir: ../output
+
+inputs:
+  cleaner:
+    plugin:
+      commandLine: python3 cleaner.py {{config.observation}}
+

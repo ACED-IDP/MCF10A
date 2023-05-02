@@ -1,4 +1,3 @@
-
 class: sifter
 name: transform
 
@@ -9,9 +8,17 @@ config:
   sampleAnnotations: ../data/raw/sample_annotations.ndjson
   hierarchy: ../data/raw/hierarchy.ndjson
   project_id: syn21577710
-  schema: ../data_model/generated-json-schema/
+  schema: ../iceberg/schemas/
 
 inputs:
+  substanceData:
+    plugin:
+      commandLine: python3 substance_transform.py {{config.sampleAnnotations}} Substance ../data/fhir/Pre_Transform/Specimen.ndjson
+
+  ObservationData:
+    plugin:
+      commandLine: python3 substance_transform.py {{config.sampleAnnotations}} Observation ../data/fhir/Pre_Transform/Specimen.ndjson
+
   researchStudyData:
     embedded:
       - #id: str(uuid.uuid5(ACED_NAMESPACE, PROJECT_ID)),
@@ -35,6 +42,31 @@ inputs:
 
 
 pipelines:
+  transform:
+    - from: substanceData
+    - project:
+        mapping:
+          resourceType: Substance
+
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Substance
+
+    - emit:
+        name: Substance
+
+  
+  transform_observation:
+    - from: ObservationData
+    - project:
+        mapping:
+          resourceType: Observation
+    - objectValidate:
+        schema: "{{config.schema}}"
+        title: Observation
+    - emit:
+        name: Observation
+
 
   researchStudy:
     # Write out the node that represents the entire Research Study
@@ -73,13 +105,16 @@ pipelines:
         field: subject_id
         # ^ vs. field: subject_idx from before
         namespace: 'aced-ipd.org'
+
     - project:
         mapping:
           id: "{{row.subject_id}}"
           resourceType: ResearchSubject
-          individual: { 'reference': "Patient/{{row.patient_id}}" }
-          study: { 'reference': "ResearchStudy/{{row.study_id}}" }
+          subject: {"reference": "Patient/{{row.patient_id}}" }
+          study: {"reference": "ResearchStudy/{{row.study_id}}"}
           status: 'on-study'
+    # If object validation is off here, a bunch of extra fields will be generated.
+        
     - objectValidate:
         schema: "{{config.schema}}"
         title: ResearchSubject
@@ -114,7 +149,7 @@ pipelines:
     # This is not actually creating the resourceType field in the Patient json file     
     - project:
         mapping:
-          resoureceType: Patient
+          resourceType: Patient
           
     - objectValidate:
         schema: "{{config.schema}}"
@@ -122,8 +157,7 @@ pipelines:
     - emit: 
         name: Patient
 
-
-  specimens:
+  specimenDocs:
     - from: sampleAnnotationData
     - uuid:
         value: "Patient/{{row.cellLine}}"
@@ -141,7 +175,7 @@ pipelines:
           def fix(row):
             out = {
               "id": row["id"],
-              'subject': {'reference': "Patient/" + row["patient_id"]},
+              'subject': {'reference': "Patient/" + str(row["patient_id"])},
               'identifier': [
                 {
                   'system': 'https://www.synapse.org/#specimenID',
@@ -154,14 +188,14 @@ pipelines:
               ],
               'collection': {
                 'bodySite': {
-                  'coding': [
-                    {
-                      'system': "http://purl.bioontology.org/ontology/SNOMEDCT",
-                      'code': "76752008", ##TODO: not hardcode this
-                      'display': 'Breast Structure'
-                    }
-                  ],
+                  'concept':{
+                    'coding': [{
+                        'system': "http://purl.bioontology.org/ontology/SNOMEDCT",
+                        'code': "76752008",
+                        'display': "Breast Structure"
+                      }],
                   'text':  row['cellType']
+                  }
                 }
               }
             }
@@ -170,11 +204,9 @@ pipelines:
         mapping:
           resourceType: Specimen
 
-    - objectValidate:
-        schema: "{{config.schema}}"
-        title: Specimen
     - emit:
-        name: Specimen
+        name: specimenDocs
+  
 
   # Flatten hierarchy dile into list of contents of file names
   hierarchy:
@@ -197,10 +229,41 @@ pipelines:
         gpython: | 
           def flatten(row):
             out = []
+            mappings = {
+              'ATACseq': ['https://ontobee.org/ontology/BAO',
+                          '0010038',
+                          'ATAC-seq Epigenetic Profiling Assay'],
+              'Cyclic Immunoflourescence': ['https://ontobee.org/ontology/NCIT',
+                          'C181929',
+                          'Tissue-Based Cyclic Immunofluorescence'],
+              'GCP': ['https://ontobee.org/ontology/BAO',
+                          '0010039',
+                          'Global Chromatin Epigenetic Profiling Assay'],
+              'IF': ['https://ontobee.org/ontology/MMO',
+                          '0000662',
+                          'Immunofluorescence'],
+              'L1000': ['https://ontobee.org/ontology/BAO',
+                          '0010046',
+                          'ATAC-seq Epigenetic Profiling Assay'],
+              'live cell imaging': ['https://ontobee.org/ontology/CHEBI',
+                          '39442',
+                          'Fluorescent Probe Live Cell Imaging'],
+              'RNAseq': ['https://ontobee.org/ontology/OBI',
+                          '0001177',
+                          'RNA sequencing assay'],
+              'RPPA':  ['https://ontobee.org/ontology/NCIT',
+                          'C184797',
+                          'Reverse Phase Protein Array']
+            }
             for k, v in row.items():
               if v.startswith("syn"):
+                arr = mappings[k.split("_")[0]]
                 out.append({
                   "assay_name": k,
+                  "system":arr[0],
+                  "code":arr[1],
+                  "display":arr[2],
+                  "text":arr[2],
                   "synid": v,
                   "patient_id": row["patient_id"],
                   "specimen_id": row["specimen_id"],
@@ -225,9 +288,6 @@ pipelines:
     - filter:
         field: entity
         check: exists
-        
-    - emit: 
-        name: debug
 
   task:
     - from: taskDocs
@@ -248,25 +308,34 @@ pipelines:
               dID = row["document_reference_id"]
               docRef.append({
                 'type': {
-                  'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference',}],
-                  'text': 'DocumentReference'
+                  'coding': [{'system': 'http://hl7.org/fhir','code': 'DocumentReference', 'display': 'DocumentReference'}],
+                  'text': 'DocumentReference',
                 },
                 'valueReference': {'reference': "DocumentReference/" + dID}
               })
 
             return {
-              'synid': row["synid"],
+              'identifier':[{'value': synapse_id, 'system':'https://www.synapse.org/'}],
               'id': row["task_id"],
               'for': {'reference': "Patient/" + row["patient_id"]},
               'focus': {'reference': "Specimen/" + row["specimen_id"]},
               'status': 'completed',
               'intent': 'order',
+              'code': {
+                'coding': [{
+                    'system': row["system"], 
+                    'code': row["code"],
+                    'display': row["display"]
+                  }],
+                  'text': row["text"]
+              },
               'input': [
                   {
                       'type': {
                           'coding': [{
                               'system': 'http://hl7.org/fhir',
                               'code': 'Specimen',
+                              'display': 'Specimen'
                           }],
                           'text': 'Specimen'
                       },
@@ -301,12 +370,11 @@ pipelines:
         gpython: |
           def fix(row):
             synapse_id = row["synid"]
-            d = {}
             directory_name = "https://www.synapse.org/#!Synapse:"
             file_handle = row['entity']['file_handle']
             d = {
               'status': 'current',
-              'subject':  {'reference': "Patient/" + row["patient_id"]},
+              'subject':  {'reference': "Patient/" + str(row["patient_id"])},
               'id' : row['id'],
               'date': file_handle['createdOn'],
               'identifier': [
@@ -315,21 +383,20 @@ pipelines:
                       'value': synapse_id
                   }
               ],
-              # TODO code, category ?
               'content': [
                   {
                       'attachment': {
-                          'contentType': file_handle['contentType'],
-                          'title': file_handle['fileName'],
-                          'url': directory_name + synapse_id,
+                          'contentType': str(file_handle['contentType']),
+                          'title': str(file_handle['fileName']),
+                          'url': str(directory_name) + str(synapse_id),
                           'extension': [
                               {
                                   "url": "http://aced-idp.org/fhir/StructureDefinition/md5",
-                                  "valueString": file_handle['contentMd5']
+                                  "valueString": str(file_handle['contentMd5'])
                               }
                           ],
-                          'size': file_handle['contentSize'],
-                          'creation': file_handle['createdOn'],
+                          'size': int(file_handle['contentSize']),
+                          'creation': str(file_handle['createdOn'])
                       }
                   }
               ]
