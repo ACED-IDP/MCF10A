@@ -51,7 +51,7 @@ def code_mappings(ligand):
                     "https://useast.ensembl.org/Homo_sapiens/Gene/"
             elif mappings[key][0][:2] == "CH":
                 return mappings[key], \
-                    "https://www.ebi.ac.uk/chembl/g/#search_results/all/"
+                    "https://www.ebi.ac.uk/chembl/compound_report_card/"
             elif mappings[key][0][:2] == "NA":
                 return "NA", "NA"
 
@@ -182,7 +182,7 @@ def emit_observation(output_path, specimen_line, flag, annotation_line):
             "category":
             [{"coding":
               [{
-                  "system": "https://terminology.hl7.org/5.1.0/CodeSystem-observation-category.html#observation-category-laboratory",
+                  "system": "http://terminology.hl7.org/CodeSystem/observation-category",
                   "code": "laboratory",
                   "display": "laboratory"
               }]
@@ -261,7 +261,7 @@ def transform_directory(file_path, output_path, specimen_path, flag):
                     "resourceType": "Substance",
                     "category": [{
                         "coding": [{
-                            "system": "http://terminology.hl7.org/CodeSystem/substance-category#chemical",
+                            "system": "http://terminology.hl7.org/CodeSystem/substance-category",
                             "code": "chemical",
                             "display": "chemical"
                         }]
@@ -299,7 +299,7 @@ def transform_directory(file_path, output_path, specimen_path, flag):
                     "resourceType": "Substance",
                     "category": [{
                         "coding": [{
-                            "system": "http://terminology.hl7.org/CodeSystem/substance-category#chemical",
+                            "system": "http://terminology.hl7.org/CodeSystem/substance-category",
                             "code": "chemical",
                             "display": "chemical"
                         }]
