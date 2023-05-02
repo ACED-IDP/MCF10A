@@ -84,13 +84,20 @@ def _are_fhir_conventions_ok(file_path: pathlib.Path) -> bool:
 
     resource = None
 
+    def _assert_no_special_characters(value: str, name: str):
+        msg = ("see https://build.fhir.org/codesystem.html#invs key: cnl-1 "
+               f"{name} should not contain | or # - these characters make processing canonical references problematic")
+        assert '#' not in value and "|" not in value, (msg, value)
+        msg = f"{name} should be a simple url without uuencoding"
+        assert "%" not in value, (msg, value)
+
     def _check_coding(self: Coding, *args, **kwargs):
         # note `self` is the Coding
         assert self.code, f"Missing `code` {resource.id} {self}"
         assert (not self.code.startswith("http")), f"`code` should _not_ be a url http {self.code}"
         assert ":" not in self.code, f"`code` should not contain ':' {self.code}"
         assert self.system, f"Missing `system` {resource.id} {self}"
-        assert "%" not in self.system, f"`system` should be a simple url without uuencoding {self.system}"
+        _assert_no_special_characters(self.system,  'system')
         assert self.display, f"Missing `display` {resource.id} {self}"
         return orig_coding_dict(self, *args, **kwargs)
 
@@ -98,6 +105,8 @@ def _are_fhir_conventions_ok(file_path: pathlib.Path) -> bool:
         # note `self` is the Identifier
         assert self.value, f"Missing `value` {resource.id} {self}"
         assert self.system, f"Missing `system` {resource.id} {self}"
+        # _assert_no_special_characters(self.system,  'system')
+        _assert_no_special_characters(self.value,  'value')
         return orig_identifier_dict(self, *args, **kwargs)
 
     # monkey patch dict() methods
@@ -116,7 +125,7 @@ def _are_fhir_conventions_ok(file_path: pathlib.Path) -> bool:
                 resource.dict()
         return True
     except AssertionError as e:
-        print(file_path, e)
+        print(file_path, e, resource)
         return False
     finally:
         # restore patches
